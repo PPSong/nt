@@ -148,12 +148,284 @@ router.post('/follow/:userId', async function (req, res, next) {
         }
       }
 
-      //todo 获取发起用户增量follow记录
-      newFollows = {}
+      global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'get_new_follows'})
 
       return res
         .status(200)
-        .json(newFollows)
+        .json('ok')
+    } catch (err) {
+      return res
+        .status(400)
+        .json({code: -1, error: err.toString()})
+    }
+  })(req, res, next)
+})
+
+router.post('/unFollow/:userId', async function (req, res, next) {
+  req.assert('userId', 'required').notEmpty()
+
+  let validateError = await req.getValidationResult()
+
+  if (!(validateError.isEmpty())) {
+    return res
+      .status(400)
+      .json({error: validateError.array()})
+  }
+
+  const userId = req.params.userId
+
+  passport.authenticate('jwt', async function (err, user, info) {
+    if (err) {
+      return next(err)
+    }
+    if (!user) {
+      return res.status(500).json({code: -1000, info: '用户不合法!'})
+    }
+
+    try {
+      //检查是否可以unfollow(非朋友 and 自己的follow中有对方)
+      const tmpFriend = await Friends.findOne({
+        ownerUserId: user._id,
+        deleted: false,
+        targetUserId: userId
+      })
+
+      if (tmpFriend != null) {
+        return res
+          .status(500)
+          .json({code: -1, error: '已是互为好友, 不能取消关注, 只能解除好友!'})
+      }
+
+      const tmpFollow = await Follows.findOne({
+        ownerUserId: user._id,
+        deleted: false,
+        targetUserId: userId
+      })
+
+      if (tmpFollow == null) {
+        return res
+          .status(500)
+          .json({code: -1, error: '关注列表无此用户, 不能取消关注!'})
+      }
+
+      //检查userId是否有对应用户
+      const targetUser = await User.findOne({_id: userId})
+      if (targetUser == null) {
+        return res
+          .status(500)
+          .json({code: -1, error: '无此目标用户!'})
+      }
+
+      const followResult = await Follows.findOneAndUpdate({
+          ownerUserId: user._id,
+          targetUserId: userId
+        },
+        {
+          ownerUserId: user._id,
+          targetUserId: userId,
+          deleted: true,
+          updateTime: Date.now()
+        },
+        {
+          upsert: true,
+          new: false
+        })
+
+      if (followResult != null || followResult.deleted == false) {
+        //确认记录确实从deleted == false 到 deleted == true, 应该要通知Follows的ownerUserId
+        global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'delete_follows'})
+      }
+
+      const fansResult = await Fans.findOneAndUpdate({
+          ownerUserId: userId,
+          targetUserId: user._id
+        },
+        {
+          ownerUserId: userId,
+          targetUserId: user._id,
+          deleted: true,
+          updateTime: Date.now()
+        },
+        {
+          upsert: true,
+          new: false
+        })
+
+      if (fansResult != null || fansResult.deleted == false) {
+        //确认记录确实从deleted == false 到 deleted == true, 应该要通知Fans的ownerUserId
+        global.clients[userId] && global.clients[userId].emit('pushEvent', {type: 'delete_fans'})
+      }
+
+      return res
+        .status(200)
+        .json('ok')
+    } catch (err) {
+      return res
+        .status(400)
+        .json({code: -1, error: err.toString()})
+    }
+  })(req, res, next)
+})
+
+router.post('/unFriend/:userId', async function (req, res, next) {
+  req.assert('userId', 'required').notEmpty()
+
+  let validateError = await req.getValidationResult()
+
+  if (!(validateError.isEmpty())) {
+    return res
+      .status(400)
+      .json({error: validateError.array()})
+  }
+
+  const userId = req.params.userId
+
+  passport.authenticate('jwt', async function (err, user, info) {
+    if (err) {
+      return next(err)
+    }
+    if (!user) {
+      return res.status(500).json({code: -1000, info: '用户不合法!'})
+    }
+
+    try {
+      //检查是否可以unfriend(朋友)
+      const tmpFriend = await Friends.findOne({
+        ownerUserId: user._id,
+        deleted: false,
+        targetUserId: userId
+      })
+
+      if (tmpFriend == null) {
+        return res
+          .status(500)
+          .json({code: -1, error: '不是好友, 不能解除好友!'})
+      }
+
+      //取消好友, follows, fans从此是路人
+      const friendResult1 = await Friends.findOneAndUpdate({
+          ownerUserId: user._id,
+          targetUserId: userId
+        },
+        {
+          ownerUserId: user._id,
+          targetUserId: userId,
+          deleted: true,
+          updateTime: Date.now()
+        },
+        {
+          upsert: true,
+          new: false
+        })
+
+      if (friendResult1 != null || friendResult1.deleted == false) {
+        //确认记录确实从deleted == false 到 deleted == true, 应该要通知ownerUserId
+        global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'delete_friends'})
+      }
+
+      const friendResult2 = await Friends.findOneAndUpdate({
+          ownerUserId: userId,
+          targetUserId: user._id
+        },
+        {
+          ownerUserId: userId,
+          targetUserId: user._id,
+          deleted: true,
+          updateTime: Date.now()
+        },
+        {
+          upsert: true,
+          new: false
+        })
+
+      if (friendResult2 != null || friendResult2.deleted == false) {
+        //确认记录确实从deleted == false 到 deleted == true, 应该要通知ownerUserId
+        global.clients[userId] && global.clients[userId].emit('pushEvent', {type: 'delete_friends'})
+      }
+
+      const followResult1 = await Follows.findOneAndUpdate({
+          ownerUserId: user._id,
+          targetUserId: userId
+        },
+        {
+          ownerUserId: user._id,
+          targetUserId: userId,
+          deleted: true,
+          updateTime: Date.now()
+        },
+        {
+          upsert: true,
+          new: false
+        })
+
+      if (followResult1 != null || followResult1.deleted == false) {
+        //确认记录确实从deleted == false 到 deleted == true, 应该要通知ownerUserId
+        global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'delete_follows'})
+      }
+
+      const followResult2 = await Friends.findOneAndUpdate({
+          ownerUserId: userId,
+          targetUserId: user._id
+        },
+        {
+          ownerUserId: userId,
+          targetUserId: user._id,
+          deleted: true,
+          updateTime: Date.now()
+        },
+        {
+          upsert: true,
+          new: false
+        })
+
+      if (followResult2 != null || followResult2.deleted == false) {
+        //确认记录确实从deleted == false 到 deleted == true, 应该要通知ownerUserId
+        global.clients[userId] && global.clients[userId].emit('pushEvent', {type: 'delete_follows'})
+      }
+
+      const fansResult1 = await Fans.findOneAndUpdate({
+          ownerUserId: user._id,
+          targetUserId: userId
+        },
+        {
+          ownerUserId: user._id,
+          targetUserId: userId,
+          deleted: true,
+          updateTime: Date.now()
+        },
+        {
+          upsert: true,
+          new: false
+        })
+
+      if (fansResult1 != null || fansResult1.deleted == false) {
+        //确认记录确实从deleted == false 到 deleted == true, 应该要通知ownerUserId
+        global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'delete_fans'})
+      }
+
+      const fansResult2 = await Friends.findOneAndUpdate({
+          ownerUserId: userId,
+          targetUserId: user._id
+        },
+        {
+          ownerUserId: userId,
+          targetUserId: user._id,
+          deleted: true,
+          updateTime: Date.now()
+        },
+        {
+          upsert: true,
+          new: false
+        })
+
+      if (fansResult2 != null || fansResult2.deleted == false) {
+        //确认记录确实从deleted == false 到 deleted == true, 应该要通知ownerUserId
+        global.clients[userId] && global.clients[userId].emit('pushEvent', {type: 'delete_fans'})
+      }
+
+      return res
+        .status(200)
+        .json('ok')
     } catch (err) {
       return res
         .status(400)
