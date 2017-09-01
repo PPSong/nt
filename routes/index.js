@@ -104,7 +104,8 @@ router.post('/follow/:userId', async function (req, res, next) {
         //检查是否已成为好友
         const tmpResult = await Follows.findOne({
           ownerUserId: userId,
-          targetUserId: user._id
+          targetUserId: user._id,
+          deleted: false
         })
 
         const now = Date.now()
@@ -363,7 +364,7 @@ router.post('/unFriend/:userId', async function (req, res, next) {
         global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'delete_follows'})
       }
 
-      const followResult2 = await Friends.findOneAndUpdate({
+      const followResult2 = await Follows.findOneAndUpdate({
           ownerUserId: userId,
           targetUserId: user._id
         },
@@ -403,7 +404,7 @@ router.post('/unFriend/:userId', async function (req, res, next) {
         global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'delete_fans'})
       }
 
-      const fansResult2 = await Friends.findOneAndUpdate({
+      const fansResult2 = await Fans.findOneAndUpdate({
           ownerUserId: userId,
           targetUserId: user._id
         },
