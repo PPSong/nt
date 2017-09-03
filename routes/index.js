@@ -31,9 +31,147 @@ async function getNewFriends (userId, startTime) {
   return result
 }
 
+function register (username, password) {
+  User.register(new User({
+    username: username,
+    nickname: username + '别名'
+  }), password, function (err, user) {
+    if (err) {
+      console.log(username + '用户已存在')
+    }
+    else {
+      console.log(username + ' register ok')
+    }
+  })
+}
+
 /* GET home page. */
-router.get('/', function (req, res, next) {
-  res.render('index', {title: 'Express'})
+router.post('/resetDB', async function (req, res, next) {
+  const result1 = await User.remove({})
+  const result2 = await Follows.remove({})
+  const result3 = await Fans.remove({})
+  const result4 = await Friends.remove({})
+
+  //create 900 users
+  for (let i = 1; i <= 900; i++) {
+    register('u' + i, '1')
+  }
+
+  res.status(200).json('resetDB request ok')
+
+})
+
+router.post('/initRelation', async function (req, res, next) {
+  const result2 = await Follows.remove({})
+  const result3 = await Fans.remove({})
+  const result4 = await Friends.remove({})
+
+  const now = Date.now()
+  //get all user id map
+  const users = await User.find({})
+  let usersMap = {}
+  for (let i = 0; i < users.length; i++) {
+    usersMap[users[i].username] = users[i]._id
+  }
+
+  //u1 follow u2-u300
+  let follows1 = []
+  let fans1 = []
+  for (let i = 2; i <= 300; i++) {
+    follows1.push({
+      ownerUserId: usersMap['u1'],
+      targetUserId: usersMap['u' + i],
+      deleted: false,
+      updateTime: now
+    })
+
+    fans1.push({
+      ownerUserId: usersMap['u' + i],
+      targetUserId: usersMap['u1'],
+      deleted: false,
+      updateTime: now
+    })
+  }
+
+  await Follows.insertMany(follows1)
+  await Fans.insertMany(fans1)
+
+  //u301-u600 follow u1
+  let follows2 = []
+  let fans2 = []
+  for (let i = 301; i <= 600; i++) {
+    follows2.push({
+      ownerUserId: usersMap['u' + i],
+      targetUserId: usersMap['u1'],
+      deleted: false,
+      updateTime: now
+    })
+
+    fans2.push({
+      ownerUserId: usersMap['u1'],
+      targetUserId: usersMap['u' + i],
+      deleted: false,
+      updateTime: now
+    })
+  }
+
+  await Follows.insertMany(follows2)
+  await Fans.insertMany(fans2)
+
+  //u1 and u601-u900 friends
+  let follow3 = []
+  let fans3 = []
+  let friends3 = []
+  for (let i = 601; i <= 900; i++) {
+    follow3.push({
+      ownerUserId: usersMap['u' + i],
+      targetUserId: usersMap['u1'],
+      deleted: false,
+      updateTime: now
+    })
+
+    follow3.push({
+      ownerUserId: usersMap['u1'],
+      targetUserId: usersMap['u' + i],
+      deleted: false,
+      updateTime: now
+    })
+
+    fans3.push({
+      ownerUserId: usersMap['u1'],
+      targetUserId: usersMap['u' + i],
+      deleted: false,
+      updateTime: now
+    })
+
+    fans3.push({
+      ownerUserId: usersMap['u' + i],
+      targetUserId: usersMap['u1'],
+      deleted: false,
+      updateTime: now
+    })
+
+    friends3.push({
+      ownerUserId: usersMap['u1'],
+      targetUserId: usersMap['u' + i],
+      deleted: false,
+      updateTime: now
+    })
+
+    friends3.push({
+      ownerUserId: usersMap['u' + i],
+      targetUserId: usersMap['u1'],
+      deleted: false,
+      updateTime: now
+    })
+  }
+
+  await Follows.insertMany(follow3)
+  await Fans.insertMany(fans3)
+  await Friends.insertMany(friends3)
+
+  res.status(200).json('initRelation ok')
+
 })
 
 router.post('/follow/:userId', async function (req, res, next) {
@@ -606,6 +744,48 @@ router.post('/getOtherUsers', async function (req, res, next) {
           _id: {$ne: user._id}
         },
         {
+          username: 1,
+          nickname: 1,
+          birthday: 1,
+          avatar: 1,
+          sex: 1,
+          updateTime: 1
+        })
+
+      return res
+        .status(200)
+        .json(result)
+    } catch (err) {
+      return res
+        .status(400)
+        .json({code: -1, error: err.toString()})
+    }
+  })(req, res, next)
+})
+
+router.post('/getMyProfile', async function (req, res, next) {
+  let validateError = await req.getValidationResult()
+
+  if (!(validateError.isEmpty())) {
+    return res
+      .status(400)
+      .json({error: validateError.array()})
+  }
+
+  passport.authenticate('jwt', async function (err, user, info) {
+    if (err) {
+      return next(err)
+    }
+    if (!user) {
+      return res.status(500).json({code: -1000, info: '用户不合法!'})
+    }
+
+    try {
+      const result = await User.findOne({
+          _id: user._id
+        },
+        {
+          username: 1,
           nickname: 1,
           birthday: 1,
           avatar: 1,
