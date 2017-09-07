@@ -31,20 +31,6 @@ async function getNewFriends (userId, startTime) {
   return result
 }
 
-function register (username, password) {
-  User.register(new User({
-    username: username,
-    nickname: username + '别名'
-  }), password, function (err, user) {
-    if (err) {
-      console.log(username + '用户已存在')
-    }
-    else {
-      console.log(username + ' register ok')
-    }
-  })
-}
-
 /* GET home page. */
 router.post('/resetDB', async function (req, res, next) {
   const result1 = await User.remove({})
@@ -53,9 +39,17 @@ router.post('/resetDB', async function (req, res, next) {
   const result4 = await Friends.remove({})
 
   //create 900 users
+  let users = []
+  const passwordHash = User.generateHash('1')
   for (let i = 1; i <= 900; i++) {
-    register('u' + i, '1')
+    users.push({
+      username: 'u' + i,
+      nickname: 'u' + i + 'n',
+      password: passwordHash
+    })
   }
+
+  await User.insertMany(users)
 
   res.status(200).json('resetDB request ok')
 
@@ -192,7 +186,7 @@ router.post('/follow/:userId', async function (req, res, next) {
       return next(err)
     }
     if (!user) {
-      return res.status(500).json({code: -1000, info: '用户不合法!'})
+      return res.status(500).json({code: -1000, info: info})
     }
 
     try {
@@ -420,11 +414,12 @@ router.post('/unFriend/:userId', async function (req, res, next) {
   const userId = req.params.userId
 
   passport.authenticate('jwt', async function (err, user, info) {
+    console.log(err, info)
     if (err) {
       return next(err)
     }
     if (!user) {
-      return res.status(500).json({code: -1000, info: '用户不合法!'})
+      return res.status(500).json({code: -1000, error: info})
     }
 
     try {
