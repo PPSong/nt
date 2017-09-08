@@ -746,6 +746,9 @@ router.post('/getOtherUsers', async function (req, res, next) {
           sex: 1,
           updateTime: 1
         })
+        .sort({
+          updateTime: -1
+        })
 
       return res
         .status(200)
