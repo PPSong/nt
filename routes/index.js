@@ -312,7 +312,7 @@ router.post('/unFollow/:userId', async function (req, res, next) {
       return next(err)
     }
     if (!user) {
-      return res.status(500).json({code: -1000, info: '用户不合法!'})
+      return res.status(500).json({code: -1000, error: info})
     }
 
     try {
@@ -584,7 +584,7 @@ router.post('/getNewFollows/:startTime', async function (req, res, next) {
       return next(err)
     }
     if (!user) {
-      return res.status(500).json({code: -1000, info: '用户不合法!'})
+      return res.status(500).json({code: -1000, error: info})
     }
 
     const startTime = req.params.startTime
@@ -619,7 +619,7 @@ router.post('/getNewFans/:startTime', async function (req, res, next) {
       return next(err)
     }
     if (!user) {
-      return res.status(500).json({code: -1000, info: '用户不合法!'})
+      return res.status(500).json({code: -1000, error: info})
     }
 
     const startTime = req.params.startTime
@@ -654,7 +654,7 @@ router.post('/getNewFriends/:startTime', async function (req, res, next) {
       return next(err)
     }
     if (!user) {
-      return res.status(500).json({code: -1000, info: '用户不合法!'})
+      return res.status(500).json({code: -1000, error: info})
     }
 
     const startTime = req.params.startTime
@@ -689,7 +689,7 @@ router.post('/getUserInfo/:userId', async function (req, res, next) {
       return next(err)
     }
     if (!user) {
-      return res.status(500).json({code: -1000, info: '用户不合法!'})
+      return res.status(500).json({code: -1000, error: info})
     }
 
     const userId = req.params.userId
@@ -731,7 +731,7 @@ router.post('/getOtherUsers', async function (req, res, next) {
       return next(err)
     }
     if (!user) {
-      return res.status(500).json({code: -1000, info: '用户不合法!'})
+      return res.status(500).json({code: -1000, error: info})
     }
 
     try {
@@ -772,7 +772,7 @@ router.post('/getMyProfile', async function (req, res, next) {
       return next(err)
     }
     if (!user) {
-      return res.status(500).json({code: -1000, info: '用户不合法!'})
+      return res.status(500).json({code: -1000, error: info})
     }
 
     try {
