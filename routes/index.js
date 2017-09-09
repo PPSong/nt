@@ -717,7 +717,9 @@ router.post('/getUserInfo/:userId', async function (req, res, next) {
   })(req, res, next)
 })
 
-router.post('/getOtherUsers', async function (req, res, next) {
+router.post('/getOtherUsers/:afterUsername', async function (req, res, next) {
+  const pageSize = 20
+
   let validateError = await req.getValidationResult()
 
   if (!(validateError.isEmpty())) {
@@ -734,9 +736,12 @@ router.post('/getOtherUsers', async function (req, res, next) {
       return res.status(500).json({code: -1000, error: info})
     }
 
+    const afterUsername = req.params.afterUsername ? req.params.afterUsername : '0'
+    console.log('afterUsername:' + afterUsername)
     try {
       const result = await User.find({
-          _id: {$ne: user._id}
+          _id: {$ne: user._id},
+          username: {$gt: afterUsername}
         },
         {
           username: 1,
@@ -747,8 +752,11 @@ router.post('/getOtherUsers', async function (req, res, next) {
           updateTime: 1
         })
         .sort({
-          updateTime: -1
+          username: 1
         })
+        .limit(pageSize)
+
+      console.log('afterUsername:' + result)
 
       return res
         .status(200)
