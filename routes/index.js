@@ -186,7 +186,7 @@ router.post('/follow/:userId', async function (req, res, next) {
       return next(err)
     }
     if (!user) {
-      return res.status(500).json({code: -1000, info: info})
+      return res.status(500).json({code: -1000, error: info})
     }
 
     try {
