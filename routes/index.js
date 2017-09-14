@@ -3,6 +3,14 @@ var router = express.Router()
 const passport = require('passport')
 const jwt = require('jsonwebtoken')
 const {User, Follows, Fans, Friends} = require('../models/models')
+var qiniu = require('qiniu')
+
+const bucket = 'pptest'
+const mac = new qiniu.auth.digest.Mac('5cA4T4oBfXgCTDnMTW3jOrCmyo9QpXGnroKdbEPr', '1HVR6ttN6n2WysdSGbyJCNn3pZNX2rCI7d8Xbj94')
+var options = {
+  scope: bucket,
+}
+var putPolicy = new qiniu.rs.PutPolicy(options)
 
 async function getNewFollows (userId, startTime) {
   result = await Follows.find({
@@ -802,6 +810,77 @@ router.post('/getMyProfile', async function (req, res, next) {
       return res
         .status(200)
         .json(result)
+    } catch (err) {
+      return res
+        .status(400)
+        .json({code: -1, error: err.toString()})
+    }
+  })(req, res, next)
+})
+
+router.post('/getQiniuToken', async function (req, res, next) {
+  let validateError = await req.getValidationResult()
+
+  if (!(validateError.isEmpty())) {
+    return res
+      .status(400)
+      .json({error: validateError.array()})
+  }
+
+  passport.authenticate('jwt', async function (err, user, info) {
+    if (err) {
+      return next(err)
+    }
+    if (!user) {
+      return res.status(500).json({code: -1000, error: info})
+    }
+
+    try {
+
+      const token = putPolicy.uploadToken(mac)
+
+      return res
+        .status(200)
+        .json({
+          token: token
+        })
+    } catch (err) {
+      return res
+        .status(400)
+        .json({code: -1, error: err.toString()})
+    }
+  })(req, res, next)
+})
+
+router.post('/updateAvatar/:avatarImageName', async function (req, res, next) {
+  req.assert('avatarImageName', 'required').notEmpty()
+
+  let validateError = await req.getValidationResult()
+
+  if (!(validateError.isEmpty())) {
+    return res
+      .status(400)
+      .json({error: validateError.array()})
+  }
+
+  passport.authenticate('jwt', async function (err, user, info) {
+    if (err) {
+      return next(err)
+    }
+    if (!user) {
+      return res.status(500).json({code: -1000, error: info})
+    }
+
+    try {
+      user.avatar = req.params.avatarImageName
+      user.updateTime = Date.now()
+      await user.save()
+
+      global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'profile_updated'})
+
+      return res
+        .status(200)
+        .json('ok')
     } catch (err) {
       return res
         .status(400)
