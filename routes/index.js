@@ -2,7 +2,7 @@ var express = require('express')
 var router = express.Router()
 const passport = require('passport')
 const jwt = require('jsonwebtoken')
-const {User, Follows, Fans, Friends, Blocks} = require('../models/models')
+const {User, Follows, Fans, Friends, Blocks, Message} = require('../models/models')
 var qiniu = require('qiniu')
 
 const bucket = 'pptest'
@@ -1268,6 +1268,106 @@ router.post('/unBlock/:userId', async function (req, res, next) {
       return res
         .status(200)
         .json('ok')
+    } catch (err) {
+      return res
+        .status(400)
+        .json({code: -1, error: err.toString()})
+    }
+  })(req, res, next)
+})
+
+router.post('/sendMessage/:_id/:body/:createTime/:lnt/:lat', async function (req, res, next) {
+  req.assert('_id', 'required').notEmpty()
+  req.assert('body', 'required').notEmpty()
+  req.assert('createTime', 'required').notEmpty()
+  req.assert('lnt', 'required').notEmpty()
+  req.assert('lat', 'required').notEmpty()
+
+  let validateError = await req.getValidationResult()
+
+  if (!(validateError.isEmpty())) {
+    return res
+      .status(400)
+      .json({error: validateError.array()})
+  }
+
+  passport.authenticate('jwt', async function (err, user, info) {
+    if (err) {
+      return next(err)
+    }
+    if (!user) {
+      return res.status(500).json({code: -1000, error: info})
+    }
+
+    try {
+      const location = {'type': 'Point', 'coordinates': [req.params.lnt, req.params.lat]}
+
+      await Message.update({
+          _id: req.params._id
+        },
+        {
+          $set: {
+            userId: user._id,
+            body: req.params.body,
+            createTime: req.params.createTime,
+            loc: location
+          }
+        },
+        {
+          upsert: true
+        })
+
+      return res
+        .status(200)
+        .json('ok')
+    } catch (err) {
+      return res
+        .status(400)
+        .json({code: -1, error: err.toString()})
+    }
+  })(req, res, next)
+})
+
+router.post('/getMessage/:lnt/:lat/:fromTime?', async function (req, res, next) {
+  req.assert('lnt', 'required').notEmpty()
+  req.assert('lat', 'required').notEmpty()
+
+  let validateError = await req.getValidationResult()
+
+  if (!(validateError.isEmpty())) {
+    return res
+      .status(400)
+      .json({error: validateError.array()})
+  }
+
+  passport.authenticate('jwt', async function (err, user, info) {
+    if (err) {
+      return next(err)
+    }
+    if (!user) {
+      return res.status(500).json({code: -1000, error: info})
+    }
+
+    try {
+      const fifteenMAgo = Date.now() - (15 * 60 * 1000)
+      let time = fifteenMAgo
+      if (req.params.fromTime) {
+        time = req.params.fromTime > time ? req.params.fromTime : time
+      }
+
+      const result = await Message.find({
+        createTime: {$gt: time},
+        loc: {
+          '$near': {
+            '$maxDistance': 500,
+            '$geometry': {type: 'Point', coordinates: [req.params.lnt, req.params.lat]}
+          }
+        }
+      }).populate('userId', '_id nickname avatar')
+
+      return res
+        .status(200)
+        .json(result)
     } catch (err) {
       return res
         .status(400)
