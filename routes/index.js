@@ -47,11 +47,19 @@ async function getNewBlocks (userId, startTime) {
     ],
     updateTime: {$gt: startTime}
   })
-    .populate('ownerUserId', '_id username nickname birthday avatar sex updateTime')
-    .populate('targetUserId', '_id username nickname birthday avatar sex updateTime')
+    .populate([
+      {path: 'ownerUserId', select: '_id username nickname birthday avatar sex updateTime'},
+      {path: 'targetUserId', select: '_id username nickname birthday avatar sex updateTime'}
+    ])
 
   return result
 }
+
+router.post('/test', async function (req, res, next) {
+  setTimeout(() => {
+    res.status(200).json('test ok')
+  }, 3000)
+})
 
 /* GET home page. */
 router.post('/resetDB', async function (req, res, next) {
@@ -428,9 +436,13 @@ router.post('/unFollow/:userId', async function (req, res, next) {
           new: false
         })
 
+      console.log('pptest0')
+      console.log(followResult)
+
       if (followResult != null || followResult.deleted == false) {
+        console.log('pptest1')
         //确认记录确实从deleted == false 到 deleted == true, 应该要通知Follows的ownerUserId
-        global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'delete_follows'})
+        global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'get_new_follows'})
       }
 
       const fansResult = await Fans.findOneAndUpdate({
@@ -450,7 +462,7 @@ router.post('/unFollow/:userId', async function (req, res, next) {
 
       if (fansResult != null || fansResult.deleted == false) {
         //确认记录确实从deleted == false 到 deleted == true, 应该要通知Fans的ownerUserId
-        global.clients[userId] && global.clients[userId].emit('pushEvent', {type: 'delete_fans'})
+        global.clients[userId] && global.clients[userId].emit('pushEvent', {type: 'get_new_fans'})
       }
 
       return res
@@ -897,15 +909,12 @@ router.post('/getOtherUsers/:afterUsername', async function (req, res, next) {
           targetUserId: 1
         })
 
-      console.log('blockMe:')
-      console.log(blockMe)
-      console.log('myBlock:')
-      console.log(myBlock)
-
       const result = await User.find({
-          _id: {$ne: user._id},
-          _id: {$nin: blockMe.map(item => item.ownerUserId)},
-          _id: {$nin: myBlock.map(item => item.targetUserId)},
+          _id: {
+            $ne: user._id,
+            $nin: blockMe.map(item => item.ownerUserId),
+            $nin: myBlock.map(item => item.targetUserId)
+          },
           username: {$gt: afterUsername}
         },
         {
@@ -1246,8 +1255,12 @@ router.post('/unBlock/:userId', async function (req, res, next) {
           new: false
         })
 
-      if (blockResult == null || blockResult.deleted == true) {
-        //确认记录确实从无到有, 或者从deleted == true 到 deleted == false, 应该要通知targetUserId, ownerUserId
+      console.log('blockResult')
+      console.log(blockResult)
+
+      if (blockResult == null || blockResult.deleted == false) {
+        //确认记录确实从无到有, 或者从deleted == false 到 deleted == true, 应该要通知targetUserId, ownerUserId
+        console.log('pushEvent get_new_blocks')
         global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'get_new_blocks'})
         global.clients[userId] && global.clients[userId].emit('pushEvent', {type: 'get_new_blocks'})
       }
