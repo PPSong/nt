@@ -2,7 +2,7 @@ var express = require('express')
 var router = express.Router()
 const passport = require('passport')
 const jwt = require('jsonwebtoken')
-const {User, Follows, Fans, Friends, Blocks, Message} = require('../models/models')
+const {User, Follows, Fans, Friends, Blocks, Message, Moment} = require('../models/models')
 var qiniu = require('qiniu')
 
 const bucket = 'pptest'
@@ -1364,6 +1364,139 @@ router.post('/getMessage/:lnt/:lat/:fromTime?', async function (req, res, next) 
           }
         }
       }).populate('userId', '_id nickname avatar')
+
+      return res
+        .status(200)
+        .json(result)
+    } catch (err) {
+      return res
+        .status(400)
+        .json({code: -1, error: err.toString()})
+    }
+  })(req, res, next)
+})
+
+router.post('/sendMoment/:_id/:image/:body/:createTime/:lnt/:lat', async function (req, res, next) {
+  req.assert('_id', 'required').notEmpty()
+  req.assert('image', 'required').notEmpty()
+  req.assert('body', 'required').notEmpty()
+  req.assert('createTime', 'required').notEmpty()
+  req.assert('lnt', 'required').notEmpty()
+  req.assert('lat', 'required').notEmpty()
+
+  let validateError = await req.getValidationResult()
+
+  if (!(validateError.isEmpty())) {
+    return res
+      .status(400)
+      .json({error: validateError.array()})
+  }
+
+  passport.authenticate('jwt', async function (err, user, info) {
+    if (err) {
+      return next(err)
+    }
+    if (!user) {
+      return res.status(500).json({code: -1000, error: info})
+    }
+
+    try {
+      const location = {'type': 'Point', 'coordinates': [req.params.lnt, req.params.lat]}
+
+      await Moment.update({
+          _id: req.params._id
+        },
+        {
+          $set: {
+            userId: user._id,
+            image: req.params.image,
+            body: req.params.body,
+            createTime: req.params.createTime,
+            loc: location
+          }
+        },
+        {
+          upsert: true
+        })
+
+      return res
+        .status(200)
+        .json('ok')
+    } catch (err) {
+      return res
+        .status(400)
+        .json({code: -1, error: err.toString()})
+    }
+  })(req, res, next)
+})
+
+router.post('/getMoment/:lnt/:lat/:fromTime?', async function (req, res, next) {
+  req.assert('lnt', 'required').notEmpty()
+  req.assert('lat', 'required').notEmpty()
+
+  let validateError = await req.getValidationResult()
+
+  if (!(validateError.isEmpty())) {
+    return res
+      .status(400)
+      .json({error: validateError.array()})
+  }
+
+  passport.authenticate('jwt', async function (err, user, info) {
+    if (err) {
+      return next(err)
+    }
+    if (!user) {
+      return res.status(500).json({code: -1000, error: info})
+    }
+
+    try {
+      const now = Date.now()
+      let time = now
+      if (req.params.fromTime) {
+        time = req.params.fromTime < time ? req.params.fromTime : time
+      }
+
+      //处理block
+      const blockResult1 = await Blocks.find({
+        ownerUserId: user._id,
+        deleted: false
+      }, {
+        targetUserId: 1
+      })
+
+      const blockResult1Users = blockResult1.map(item => item.targetUserId)
+
+      const blockResult2 = await Blocks.find({
+        targetUserId: user._id,
+        deleted: false
+      }, {
+        ownerUserId: 1
+      })
+
+      const blockResult2Users = blockResult2.map(item => item.ownerUserId)
+
+      const blockList = blockResult1Users.concat(blockResult2Users)
+
+      console.log(blockList)
+
+      const result = await Moment.find({
+        userId: {
+          $nin: blockList
+        },
+        createTime: {$lt: time},
+        loc: {
+          '$near': {
+            '$maxDistance': 500,
+            '$geometry': {type: 'Point', coordinates: [req.params.lnt, req.params.lat]}
+          }
+        }
+      })
+        .sort({createTime: -1})
+        .limit(5)
+        .populate('userId', '_id nickname avatar')
+
+      console.log(result)
 
       return res
         .status(200)
