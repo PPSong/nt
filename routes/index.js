@@ -1706,7 +1706,46 @@ router.post('/getComments/:momentId', async function (req, res, next) {
         })
         .populate('userId', '_id nickname avatar')
 
-      console.log("comments")
+      console.log('comments')
+      console.log(result)
+
+      return res
+        .status(200)
+        .json(result)
+    } catch (err) {
+      return res
+        .status(400)
+        .json({code: -1, error: err.toString()})
+    }
+  })(req, res, next)
+})
+
+router.post('/deleteComment/:commentId', async function (req, res, next) {
+  req.assert('commentId', 'required').notEmpty()
+
+  let validateError = await req.getValidationResult()
+
+  if (!(validateError.isEmpty())) {
+    return res
+      .status(400)
+      .json({error: validateError.array()})
+  }
+
+  passport.authenticate('jwt', async function (err, user, info) {
+    if (err) {
+      return next(err)
+    }
+    if (!user) {
+      return res.status(500).json({code: -1000, error: info})
+    }
+
+    try {
+
+      const result = await Comment.remove({
+        _id: req.params.commentId,
+        userId: user._id
+      })
+
       console.log(result)
 
       return res
