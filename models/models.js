@@ -116,6 +116,20 @@ const Moment = new Schema({
 })
 Moment.index({loc: '2dsphere'})
 
+const Comment = new Schema({
+  _id: String,
+  userId: {
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  momentId: {
+    type: String,
+    ref: 'Moment'
+  },
+  body: String,
+  createTime: Number,
+})
+
 module.exports = {
   User: mongoose.model('User', User),
   Follows: mongoose.model('Follows', Follows),
@@ -123,5 +137,6 @@ module.exports = {
   Friends: mongoose.model('Friends', Friends),
   Blocks: mongoose.model('Blocks', Blocks),
   Message: mongoose.model('Message', Message),
-  Moment: mongoose.model('Moment', Moment)
+  Moment: mongoose.model('Moment', Moment),
+  Comment: mongoose.model('Comment', Comment)
 }

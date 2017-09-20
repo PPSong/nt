@@ -2,7 +2,7 @@ var express = require('express')
 var router = express.Router()
 const passport = require('passport')
 const jwt = require('jsonwebtoken')
-const {User, Follows, Fans, Friends, Blocks, Message, Moment} = require('../models/models')
+const {User, Follows, Fans, Friends, Blocks, Message, Moment, Comment} = require('../models/models')
 var qiniu = require('qiniu')
 
 const bucket = 'pptest'
@@ -1496,6 +1496,217 @@ router.post('/getMoment/:lnt/:lat/:fromTime?', async function (req, res, next) {
         .limit(5)
         .populate('userId', '_id nickname avatar')
 
+      console.log(result)
+
+      return res
+        .status(200)
+        .json(result)
+    } catch (err) {
+      return res
+        .status(400)
+        .json({code: -1, error: err.toString()})
+    }
+  })(req, res, next)
+})
+
+router.post('/getMomentDetail/:momentId', async function (req, res, next) {
+  req.assert('momentId', 'required').notEmpty()
+
+  let validateError = await req.getValidationResult()
+
+  if (!(validateError.isEmpty())) {
+    return res
+      .status(400)
+      .json({error: validateError.array()})
+  }
+
+  passport.authenticate('jwt', async function (err, user, info) {
+    if (err) {
+      return next(err)
+    }
+    if (!user) {
+      return res.status(500).json({code: -1000, error: info})
+    }
+
+    try {
+      //处理block
+      const blockResult1 = await Blocks.find({
+        ownerUserId: user._id,
+        deleted: false
+      }, {
+        targetUserId: 1
+      })
+
+      const blockResult1Users = blockResult1.map(item => item.targetUserId)
+
+      const blockResult2 = await Blocks.find({
+        targetUserId: user._id,
+        deleted: false
+      }, {
+        ownerUserId: 1
+      })
+
+      const blockResult2Users = blockResult2.map(item => item.ownerUserId)
+
+      const blockList = blockResult1Users.concat(blockResult2Users)
+
+      const result = await Moment.findOne({
+        _id: req.params.momentId,
+        userId: {
+          $nin: blockList
+        }
+      })
+        .populate('userId', '_id nickname avatar')
+
+      console.log(result)
+
+      return res
+        .status(200)
+        .json(result)
+    } catch (err) {
+      return res
+        .status(400)
+        .json({code: -1, error: err.toString()})
+    }
+  })(req, res, next)
+})
+
+router.post('/sendComment/:_id/:momentId/:body/:createTime', async function (req, res, next) {
+  req.assert('_id', 'required').notEmpty()
+  req.assert('momentId', 'required').notEmpty()
+  req.assert('body', 'required').notEmpty()
+  req.assert('createTime', 'required').notEmpty()
+
+  let validateError = await req.getValidationResult()
+
+  if (!(validateError.isEmpty())) {
+    return res
+      .status(400)
+      .json({error: validateError.array()})
+  }
+
+  passport.authenticate('jwt', async function (err, user, info) {
+    if (err) {
+      return next(err)
+    }
+    if (!user) {
+      return res.status(500).json({code: -1000, error: info})
+    }
+
+    try {
+      //处理block
+      const blockResult1 = await Blocks.find({
+        ownerUserId: user._id,
+        deleted: false
+      }, {
+        targetUserId: 1
+      })
+
+      const blockResult1Users = blockResult1.map(item => item.targetUserId)
+
+      const blockResult2 = await Blocks.find({
+        targetUserId: user._id,
+        deleted: false
+      }, {
+        ownerUserId: 1
+      })
+
+      const blockResult2Users = blockResult2.map(item => item.ownerUserId)
+
+      const blockList = blockResult1Users.concat(blockResult2Users)
+
+      const targetMoment = await Moment.findOne({
+        _id: req.params.momentId,
+        userId: {
+          $nin: blockList
+        }
+      })
+
+      if (targetMoment == null) {
+        return res
+          .status(500)
+          .json({code: -1, error: '无此moment, 或对方屏蔽或被屏蔽中!'})
+      }
+
+      await Comment.update({
+          _id: req.params._id,
+          momentId: req.params.momentId
+        },
+        {
+          $set: {
+            userId: user._id,
+            body: req.params.body,
+            createTime: req.params.createTime,
+          }
+        },
+        {
+          upsert: true
+        })
+
+      return res
+        .status(200)
+        .json('ok')
+    } catch (err) {
+      return res
+        .status(400)
+        .json({code: -1, error: err.toString()})
+    }
+  })(req, res, next)
+})
+
+router.post('/getComments/:momentId', async function (req, res, next) {
+  req.assert('momentId', 'required').notEmpty()
+
+  let validateError = await req.getValidationResult()
+
+  if (!(validateError.isEmpty())) {
+    return res
+      .status(400)
+      .json({error: validateError.array()})
+  }
+
+  passport.authenticate('jwt', async function (err, user, info) {
+    if (err) {
+      return next(err)
+    }
+    if (!user) {
+      return res.status(500).json({code: -1000, error: info})
+    }
+
+    try {
+      //处理block
+      const blockResult1 = await Blocks.find({
+        ownerUserId: user._id,
+        deleted: false
+      }, {
+        targetUserId: 1
+      })
+
+      const blockResult1Users = blockResult1.map(item => item.targetUserId)
+
+      const blockResult2 = await Blocks.find({
+        targetUserId: user._id,
+        deleted: false
+      }, {
+        ownerUserId: 1
+      })
+
+      const blockResult2Users = blockResult2.map(item => item.ownerUserId)
+
+      const blockList = blockResult1Users.concat(blockResult2Users)
+
+      const result = await Comment.find({
+        momentId: req.params.momentId,
+        userId: {
+          $nin: blockList
+        }
+      })
+        .sort({
+          createTime: 1
+        })
+        .populate('userId', '_id nickname avatar')
+
+      console.log("comments")
       console.log(result)
 
       return res
