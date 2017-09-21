@@ -67,6 +67,10 @@ router.post('/resetDB', async function (req, res, next) {
   const result2 = await Follows.remove({})
   const result3 = await Fans.remove({})
   const result4 = await Friends.remove({})
+  const result5 = await Blocks.remove({})
+  const result6 = await Comment.remove({})
+  const result7 = await Message.remove({})
+  const result8 = await Moment.remove({})
 
   //create 900 users
   let users = []
