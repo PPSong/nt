@@ -1589,9 +1589,15 @@ router.post('/getMomentDetail/:momentId', async function (req, res, next) {
 
       console.log(result)
 
-      return res
-        .status(200)
-        .json(result)
+      if (result == null) {
+        return res
+          .status(400)
+          .json({code: -1, error: '无对应记录或有屏蔽关系!'})
+      } else {
+        return res
+          .status(200)
+          .json(result)
+      }
     } catch (err) {
       return res
         .status(400)
