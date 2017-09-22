@@ -1359,7 +1359,32 @@ router.post('/getMessage/:lnt/:lat/:fromTime?', async function (req, res, next) 
         time = req.params.fromTime > time ? req.params.fromTime : time
       }
 
+      //todo 有可能需要用redis缓存当前的blocklist来提高读取效率
+      //处理block
+      const blockResult1 = await Blocks.find({
+        ownerUserId: user._id,
+        deleted: false
+      }, {
+        targetUserId: 1
+      })
+
+      const blockResult1Users = blockResult1.map(item => item.targetUserId)
+
+      const blockResult2 = await Blocks.find({
+        targetUserId: user._id,
+        deleted: false
+      }, {
+        ownerUserId: 1
+      })
+
+      const blockResult2Users = blockResult2.map(item => item.ownerUserId)
+
+      const blockList = blockResult1Users.concat(blockResult2Users)
+
       const result = await Message.find({
+        userId: {
+          $nin: blockList
+        },
         createTime: {$gt: time},
         loc: {
           '$near': {
