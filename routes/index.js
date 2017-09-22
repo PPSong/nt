@@ -1538,6 +1538,49 @@ router.post('/getMoment/:lnt/:lat/:fromTime?', async function (req, res, next) {
   })(req, res, next)
 })
 
+router.post('/getMyMoment/:fromTime?', async function (req, res, next) {
+
+  let validateError = await req.getValidationResult()
+
+  if (!(validateError.isEmpty())) {
+    return res
+      .status(400)
+      .json({error: validateError.array()})
+  }
+
+  passport.authenticate('jwt', async function (err, user, info) {
+    if (err) {
+      return next(err)
+    }
+    if (!user) {
+      return res.status(500).json({code: -1000, error: info})
+    }
+
+    try {
+      const now = Date.now()
+      let time = now
+      if (req.params.fromTime) {
+        time = req.params.fromTime < time ? req.params.fromTime : time
+      }
+
+      const result = await Moment.find({
+        userId: user._id,
+        createTime: {$lt: time}
+      })
+        .sort({createTime: -1})
+        .limit(5)
+
+      return res
+        .status(200)
+        .json(result)
+    } catch (err) {
+      return res
+        .status(400)
+        .json({code: -1, error: err.toString()})
+    }
+  })(req, res, next)
+})
+
 router.post('/getMomentDetail/:momentId', async function (req, res, next) {
   req.assert('momentId', 'required').notEmpty()
 
