@@ -43,8 +43,8 @@ io.on('connection', function (socket) {
     console.log(Object.keys(global.clients))
   })
 
-  socket.on('heartBeat', function (username) {
-    console.log(username)
+  socket.on('heartBeat', function (_id) {
+    console.log(_id)
   })
 })
 server.listen(3001)
@@ -73,10 +73,10 @@ app.use(express.static(path.join(__dirname, 'public')))
 passport.use('local', new LocalStrategy({
     passReqToCallback: true
   },
-  async function (req, username, password, done) {
+  async function (req, _id, password, done) {
     try {
       let user = await User.findOne({
-        username: username
+        _id: _id
       })
 
       if (!user) {
@@ -102,7 +102,7 @@ passport.use('local-signup', new LocalStrategy({
     // by default, local strategy uses username and password, we will override with email
     passReqToCallback: true // allows us to pass back the entire request to the callback
   },
-  function (req, username, password, done) {
+  function (req, _id, password, done) {
 
     // asynchronous
     // User.findOne wont fire unless data is sent back
@@ -110,7 +110,7 @@ passport.use('local-signup', new LocalStrategy({
 
       // find a user whose email is the same as the forms email
       // we are checking to see if the user trying to login already exists
-      User.findOne({username: username}, function (err, user) {
+      User.findOne({_id: _id}, function (err, user) {
         // if there are any errors, return the error
         if (err)
           return done(err)
@@ -125,8 +125,8 @@ passport.use('local-signup', new LocalStrategy({
           var newUser = new User()
 
           // set the user's local credentials
-          newUser.username = username
-          newUser.nickname = username + 'n'
+          newUser._id = _id
+          newUser.nickname = _id + 'n'
           newUser.password = User.generateHash(password)
 
           // save the user

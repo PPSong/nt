@@ -3,7 +3,7 @@ const bcrypt = require('bcrypt')
 const Schema = mongoose.Schema
 
 const User = new Schema({
-  username: String,
+  _id: String,
   password: String,
   loginTime: {type: Number, default: Date.now()},
   nickname: String,
@@ -29,11 +29,11 @@ User.methods.validPassword = function (password) {
 
 const Blocks = new Schema({
   ownerUserId: {
-    type: Schema.Types.ObjectId,
+    type: String,
     ref: 'User'
   },
   targetUserId: {
-    type: Schema.Types.ObjectId,
+    type: String,
     ref: 'User'
   },
   deleted: Boolean,
@@ -44,11 +44,11 @@ Blocks.index({ownerUserId: 1, targetUserId: 1}, {unique: true})
 //ownerUserId follow targetUserId
 const Follows = new Schema({
   ownerUserId: {
-    type: Schema.Types.ObjectId,
+    type: String,
     ref: 'User'
   },
   targetUserId: {
-    type: Schema.Types.ObjectId,
+    type: String,
     ref: 'User'
   },
   deleted: Boolean,
@@ -59,11 +59,11 @@ Follows.index({ownerUserId: 1, targetUserId: 1}, {unique: true})
 //targetUserId follow ownerUserId
 const Fans = new Schema({
   ownerUserId: {
-    type: Schema.Types.ObjectId,
+    type: String,
     ref: 'User'
   },
   targetUserId: {
-    type: Schema.Types.ObjectId,
+    type: String,
     ref: 'User'
   },
   deleted: Boolean,
@@ -73,11 +73,11 @@ Fans.index({ownerUserId: 1, targetUserId: 1}, {unique: true})
 
 const Friends = new Schema({
   ownerUserId: {
-    type: Schema.Types.ObjectId,
+    type: String,
     ref: 'User'
   },
   targetUserId: {
-    type: Schema.Types.ObjectId,
+    type: String,
     ref: 'User'
   },
   deleted: Boolean,
@@ -88,7 +88,7 @@ Friends.index({ownerUserId: 1, targetUserId: 1}, {unique: true})
 const Message = new Schema({
   _id: String,
   userId: {
-    type: Schema.Types.ObjectId,
+    type: String,
     ref: 'User'
   },
   body: String,
@@ -103,7 +103,7 @@ Message.index({loc: '2dsphere'})
 const Moment = new Schema({
   _id: String,
   userId: {
-    type: Schema.Types.ObjectId,
+    type: String,
     ref: 'User'
   },
   image: String,
@@ -119,7 +119,7 @@ Moment.index({loc: '2dsphere'})
 const Comment = new Schema({
   _id: String,
   userId: {
-    type: Schema.Types.ObjectId,
+    type: String,
     ref: 'User'
   },
   momentId: {

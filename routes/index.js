@@ -16,7 +16,7 @@ async function getNewFollows (userId, startTime) {
   result = await Follows.find({
     ownerUserId: userId,
     updateTime: {$gt: startTime}
-  }).populate('targetUserId', '_id username nickname birthday avatar sex updateTime')
+  }).populate('targetUserId', '_id nickname birthday avatar sex updateTime')
 
   return result
 }
@@ -25,7 +25,7 @@ async function getNewFans (userId, startTime) {
   result = await Fans.find({
     ownerUserId: userId,
     updateTime: {$gt: startTime}
-  }).populate('targetUserId', '_id username nickname birthday avatar sex updateTime')
+  }).populate('targetUserId', '_id nickname birthday avatar sex updateTime')
 
   return result
 }
@@ -34,7 +34,7 @@ async function getNewFriends (userId, startTime) {
   result = await Friends.find({
     ownerUserId: userId,
     updateTime: {$gt: startTime}
-  }).populate('targetUserId', '_id username nickname birthday avatar sex updateTime')
+  }).populate('targetUserId', '_id nickname birthday avatar sex updateTime')
 
   return result
 }
@@ -48,11 +48,153 @@ async function getNewBlocks (userId, startTime) {
     updateTime: {$gt: startTime}
   })
     .populate([
-      {path: 'ownerUserId', select: '_id username nickname birthday avatar sex updateTime'},
-      {path: 'targetUserId', select: '_id username nickname birthday avatar sex updateTime'}
+      {path: 'ownerUserId', select: '_id nickname birthday avatar sex updateTime'},
+      {path: 'targetUserId', select: '_id nickname birthday avatar sex updateTime'}
     ])
 
   return result
+}
+
+async function unblockUsers (userIds) {
+  const now = Date.now()
+
+  for (var i = 0; i < userIds; i++) {
+    const userId = userIds[i]
+
+    //添加block列表
+    const blockResult = await Blocks.findOneAndUpdate({
+        ownerUserId: user._id,
+        targetUserId: userId
+      },
+      {
+        $set: {
+          deleted: true,
+          updateTime: now
+        }
+      },
+      {
+        upsert: true,
+        new: false
+      })
+
+    if (blockResult == null || blockResult.deleted == false) {
+      //确认记录确实从无到有, 或者从deleted == false 到 deleted == true, 应该要通知targetUserId, ownerUserId
+      global.clients[userId] && global.clients[userId].emit('pushEvent', {type: 'get_new_blocks'})
+    }
+  }
+
+  global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'get_new_blocks'})
+}
+
+async function blockUsers (userIds) {
+  const now = Date.now()
+
+  for (var i = 0; i < userIds; i++) {
+    const userId = userIds[i]
+
+    //解除所有关系, 从此是路人
+    await Follows.update(
+      {
+        $or: [
+          {
+            ownerUserId: user._id,
+            targetUserId: userId
+          },
+          {
+            ownerUserId: userId,
+            targetUserId: user._id
+          }
+        ],
+        deleted: false
+      },
+      {
+        $set: {
+          deleted: true,
+          updateTime: now
+        }
+      },
+      {
+        multi: true
+      }
+    )
+
+    await Fans.update(
+      {
+        $or: [
+          {
+            ownerUserId: user._id,
+            targetUserId: userId
+          },
+          {
+            ownerUserId: userId,
+            targetUserId: user._id
+          }
+        ],
+        deleted: false
+      },
+      {
+        $set: {
+          deleted: true,
+          updateTime: now
+        }
+      },
+      {
+        multi: true
+      }
+    )
+
+    await Friends.update(
+      {
+        $or: [
+          {
+            ownerUserId: user._id,
+            targetUserId: userId
+          },
+          {
+            ownerUserId: userId,
+            targetUserId: user._id
+          }
+        ],
+        deleted: false
+      },
+      {
+        $set: {
+          deleted: true,
+          updateTime: now
+        }
+      },
+      {
+        multi: true
+      }
+    )
+
+    //添加block列表
+    const blockResult = await Blocks.findOneAndUpdate({
+        ownerUserId: user._id,
+        targetUserId: userId
+      },
+      {
+        deleted: false,
+        updateTime: now
+      },
+      {
+        upsert: true,
+        new: false
+      })
+
+    if (blockResult == null || blockResult.deleted == true) {
+      //确认记录确实从无到有, 或者从deleted == true 到 deleted == false, 应该要通知targetUserId, ownerUserId
+
+      global.clients[userId] && global.clients[userId].emit('pushEvent', {type: 'get_new_blocks'})
+      global.clients[userId] && global.clients[userId].emit('pushEvent', {type: 'get_new_fans'})
+      global.clients[userId] && global.clients[userId].emit('pushEvent', {type: 'get_new_follows'})
+      global.clients[userId] && global.clients[userId].emit('pushEvent', {type: 'get_new_friends'})
+    }
+  }
+  global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'get_new_blocks'})
+  global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'get_new_fans'})
+  global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'get_new_follows'})
+  global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'get_new_friends'})
 }
 
 router.post('/test', async function (req, res, next) {
@@ -77,7 +219,7 @@ router.post('/resetDB', async function (req, res, next) {
   const passwordHash = User.generateHash('1')
   for (let i = 1; i <= 900; i++) {
     users.push({
-      username: 'u' + i,
+      _id: 'u' + i,
       nickname: 'u' + i + 'n',
       password: passwordHash
     })
@@ -99,7 +241,7 @@ router.post('/initRelation', async function (req, res, next) {
   const users = await User.find({})
   let usersMap = {}
   for (let i = 0; i < users.length; i++) {
-    usersMap[users[i].username] = users[i]._id
+    usersMap[users[i]._id] = users[i]._id
   }
 
   //u1 follow u2-u300
@@ -874,7 +1016,7 @@ router.post('/getUserInfo/:userId', async function (req, res, next) {
   })(req, res, next)
 })
 
-router.post('/getOtherUsers/:afterUsername', async function (req, res, next) {
+router.post('/getOtherUsers/:afterUserId', async function (req, res, next) {
   const pageSize = 20
 
   let validateError = await req.getValidationResult()
@@ -893,8 +1035,8 @@ router.post('/getOtherUsers/:afterUsername', async function (req, res, next) {
       return res.status(500).json({code: -1000, error: info})
     }
 
-    const afterUsername = req.params.afterUsername ? req.params.afterUsername : '0'
-    console.log('afterUsername:' + afterUsername)
+    const afterUserId = req.params.afterUserId ? req.params.afterUserId : '0'
+    console.log('afterUserId:' + afterUserId)
     try {
       //获取block我的人
       const blockMe = await Blocks.find({
@@ -917,12 +1059,11 @@ router.post('/getOtherUsers/:afterUsername', async function (req, res, next) {
           _id: {
             $ne: user._id,
             $nin: blockMe.map(item => item.ownerUserId),
-            $nin: myBlock.map(item => item.targetUserId)
-          },
-          username: {$gt: afterUsername}
+            $nin: myBlock.map(item => item.targetUserId),
+            $gt: afterUsername
+          }
         },
         {
-          username: 1,
           nickname: 1,
           birthday: 1,
           avatar: 1,
@@ -930,11 +1071,9 @@ router.post('/getOtherUsers/:afterUsername', async function (req, res, next) {
           updateTime: 1
         })
         .sort({
-          username: 1
+          _id: 1
         })
         .limit(pageSize)
-
-      // console.log('afterUsername:' + result)
 
       return res
         .status(200)
@@ -969,7 +1108,6 @@ router.post('/getMyProfile', async function (req, res, next) {
           _id: user._id
         },
         {
-          username: 1,
           nickname: 1,
           birthday: 1,
           avatar: 1,
@@ -1059,8 +1197,8 @@ router.post('/updateAvatar/:avatarImageName', async function (req, res, next) {
   })(req, res, next)
 })
 
-router.post('/block/:userId', async function (req, res, next) {
-  req.assert('userId', 'required').notEmpty()
+router.post('/block/:userIds', async function (req, res, next) {
+  req.assert('userIds', 'required').notEmpty()
 
   let validateError = await req.getValidationResult()
 
@@ -1078,123 +1216,18 @@ router.post('/block/:userId', async function (req, res, next) {
       return res.status(500).json({code: -1000, error: info})
     }
 
-    const userId = req.params.userId
-
-    if (userId == user._id) {
-      return res
-        .status(500)
-        .json({code: -1, error: '不能屏蔽自己!'})
-    }
+    const userIds = req.params.userIds
 
     try {
-      // 检查userId是否有对应用户
-      const targetUser = await User.findOne({_id: userId})
-      if (targetUser == null) {
-        return res
-          .status(500)
-          .json({code: -1, error: '无此目标用户!'})
+      for (var i = 0; i < userIds.length; i++) {
+        if (userIds[i] == user._id) {
+          return res
+            .status(500)
+            .json({code: -1, error: '不能屏蔽自己!'})
+        }
       }
 
-      const now = Date.now()
-
-      //解除所有关系, 从此是路人
-      await Follows.update(
-        {
-          $or: [
-            {
-              ownerUserId: user._id,
-              targetUserId: userId
-            },
-            {
-              ownerUserId: userId,
-              targetUserId: user._id
-            }
-          ],
-          deleted: false
-        },
-        {
-          deleted: true,
-          updateTime: now
-        },
-        {
-          multi: true
-        }
-      )
-
-      await Fans.update(
-        {
-          $or: [
-            {
-              ownerUserId: user._id,
-              targetUserId: userId
-            },
-            {
-              ownerUserId: userId,
-              targetUserId: user._id
-            }
-          ],
-          deleted: false
-        },
-        {
-          deleted: true,
-          updateTime: now
-        },
-        {
-          multi: true
-        }
-      )
-
-      await Friends.update(
-        {
-          $or: [
-            {
-              ownerUserId: user._id,
-              targetUserId: userId
-            },
-            {
-              ownerUserId: userId,
-              targetUserId: user._id
-            }
-          ],
-          deleted: false
-        },
-        {
-          deleted: true,
-          updateTime: now
-        },
-        {
-          multi: true
-        }
-      )
-
-      //添加block列表
-      const blockResult = await Blocks.findOneAndUpdate({
-          ownerUserId: user._id,
-          targetUserId: userId
-        },
-        {
-          deleted: false,
-          updateTime: Date.now()
-        },
-        {
-          upsert: true,
-          new: false
-        })
-
-      if (blockResult == null || blockResult.deleted == true) {
-        //确认记录确实从无到有, 或者从deleted == true 到 deleted == false, 应该要通知targetUserId, ownerUserId
-        global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'get_new_blocks'})
-        global.clients[userId] && global.clients[userId].emit('pushEvent', {type: 'get_new_blocks'})
-
-        global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'get_new_fans'})
-        global.clients[userId] && global.clients[userId].emit('pushEvent', {type: 'get_new_fans'})
-
-        global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'get_new_follows'})
-        global.clients[userId] && global.clients[userId].emit('pushEvent', {type: 'get_new_follows'})
-
-        global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'get_new_friends'})
-        global.clients[userId] && global.clients[userId].emit('pushEvent', {type: 'get_new_friends'})
-      }
+      blockUsers(userIds)
 
       return res
         .status(200)
@@ -1207,8 +1240,8 @@ router.post('/block/:userId', async function (req, res, next) {
   })(req, res, next)
 })
 
-router.post('/unBlock/:userId', async function (req, res, next) {
-  req.assert('userId', 'required').notEmpty()
+router.post('/unBlock/:userIds', async function (req, res, next) {
+  req.assert('userIds', 'required').notEmpty()
 
   let validateError = await req.getValidationResult()
 
@@ -1226,48 +1259,18 @@ router.post('/unBlock/:userId', async function (req, res, next) {
       return res.status(500).json({code: -1000, error: info})
     }
 
-    const userId = req.params.userId
-
-    if (userId == user._id) {
-      return res
-        .status(500)
-        .json({code: -1, error: '不能解禁自己!'})
-    }
+    const userIds = req.params.userIds
 
     try {
-      // 检查userId是否有对应用户
-      const targetUser = await User.findOne({_id: userId})
-      if (targetUser == null) {
-        return res
-          .status(500)
-          .json({code: -1, error: '无此目标用户!'})
+      for (var i = 0; i < userIds.length; i++) {
+        if (userIds[i] == user._id) {
+          return res
+            .status(500)
+            .json({code: -1, error: '不能解禁自己!'})
+        }
       }
 
-      const now = Date.now()
-
-      //添加block列表
-      const blockResult = await Blocks.findOneAndUpdate({
-          ownerUserId: user._id,
-          targetUserId: userId
-        },
-        {
-          deleted: true,
-          updateTime: Date.now()
-        },
-        {
-          upsert: true,
-          new: false
-        })
-
-      console.log('blockResult')
-      console.log(blockResult)
-
-      if (blockResult == null || blockResult.deleted == false) {
-        //确认记录确实从无到有, 或者从deleted == false 到 deleted == true, 应该要通知targetUserId, ownerUserId
-        console.log('pushEvent get_new_blocks')
-        global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'get_new_blocks'})
-        global.clients[userId] && global.clients[userId].emit('pushEvent', {type: 'get_new_blocks'})
-      }
+      unblockUsers(userIds)
 
       return res
         .status(200)

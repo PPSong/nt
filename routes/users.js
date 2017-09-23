@@ -12,7 +12,7 @@ router.get('/', function (req, res, next) {
 const secret = '7x0jhxt"9(thpX6'
 
 router.post('/login', async function (req, res, next) {
-  req.assert('username', 'required').notEmpty()
+  req.assert('_id', 'required').notEmpty()
   req.assert('password', 'required').notEmpty()
 
   let validateError = await req.getValidationResult()
@@ -31,12 +31,11 @@ router.post('/login', async function (req, res, next) {
       return res.status(401).json({error: info})
     }
     if (user) {
-      const token = jwt.sign({id: user._id, username: user.username, loginTime: user.loginTime}, secret)
+      const token = jwt.sign({id: user._id, loginTime: user.loginTime}, secret)
       return res
         .status(200)
         .json({
           _id: user._id,
-          username: user.username,
           nickname: user.nickname,
           token: token,
           avatar: user.avatar,
@@ -47,7 +46,7 @@ router.post('/login', async function (req, res, next) {
 })
 
 router.post('/register', async function (req, res, next) {
-  req.assert('username', 'required').notEmpty()
+  req.assert('_id', 'required').notEmpty()
   req.assert('password', 'required').notEmpty()
 
   let validateError = await req.getValidationResult()
@@ -66,12 +65,11 @@ router.post('/register', async function (req, res, next) {
       return res.status(401).json({error: info})
     }
     if (user) {
-      const token = jwt.sign({id: user._id, username: user.username, loginTime: user.loginTime}, secret)
+      const token = jwt.sign({id: user._id, loginTime: user.loginTime}, secret)
       return res
         .status(200)
         .json({
           _id: user._id,
-          username: user.username,
           nickname: user.nickname,
           token: token,
           avatar: user.avatar,
