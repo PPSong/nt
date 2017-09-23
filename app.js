@@ -71,10 +71,12 @@ app.use(express.static(path.join(__dirname, 'public')))
 
 // Configure Passport to use local strategy for initial authentication.
 passport.use('local', new LocalStrategy({
+    usernameField: '_id',
     passReqToCallback: true
   },
   async function (req, _id, password, done) {
     try {
+      console.log('local jwt:')
       let user = await User.findOne({
         _id: _id
       })
@@ -93,6 +95,7 @@ passport.use('local', new LocalStrategy({
       return done(null, user)
 
     } catch (err) {
+      console.log('local error:')
       console.log(err)
       return done(err)
     }
@@ -100,10 +103,11 @@ passport.use('local', new LocalStrategy({
 
 passport.use('local-signup', new LocalStrategy({
     // by default, local strategy uses username and password, we will override with email
+    usernameField: '_id',
     passReqToCallback: true // allows us to pass back the entire request to the callback
   },
   function (req, _id, password, done) {
-
+    console.log('local-signup jwt:')
     // asynchronous
     // User.findOne wont fire unless data is sent back
     process.nextTick(function () {

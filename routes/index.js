@@ -47,20 +47,21 @@ async function getNewBlocks (userId, startTime) {
     ],
     updateTime: {$gt: startTime}
   })
-    .populate([
-      {path: 'ownerUserId', select: '_id nickname birthday avatar sex updateTime'},
-      {path: 'targetUserId', select: '_id nickname birthday avatar sex updateTime'}
-    ])
+    // .populate([
+    //   {path: 'ownerUserId', select: '_id nickname birthday avatar sex updateTime'},
+    //   {path: 'targetUserId', select: '_id nickname birthday avatar sex updateTime'}
+    // ])
 
   return result
 }
 
-async function unblockUsers (userIds) {
+async function unblockUsers (user, userIds) {
   const now = Date.now()
 
-  for (var i = 0; i < userIds; i++) {
+  for (var i = 0; i < userIds.length; i++) {
     const userId = userIds[i]
 
+    console.log("unblock:" + userId);
     //添加block列表
     const blockResult = await Blocks.findOneAndUpdate({
         ownerUserId: user._id,
@@ -86,10 +87,11 @@ async function unblockUsers (userIds) {
   global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'get_new_blocks'})
 }
 
-async function blockUsers (userIds) {
+async function blockUsers (user, userIds) {
+  console.log("blockUsers:" + userIds);
   const now = Date.now()
 
-  for (var i = 0; i < userIds; i++) {
+  for (var i = 0; i < userIds.length; i++) {
     const userId = userIds[i]
 
     //解除所有关系, 从此是路人
@@ -181,6 +183,8 @@ async function blockUsers (userIds) {
         upsert: true,
         new: false
       })
+
+    console.log("blockResult:" + blockResult);
 
     if (blockResult == null || blockResult.deleted == true) {
       //确认记录确实从无到有, 或者从deleted == true 到 deleted == false, 应该要通知targetUserId, ownerUserId
@@ -1060,7 +1064,7 @@ router.post('/getOtherUsers/:afterUserId', async function (req, res, next) {
             $ne: user._id,
             $nin: blockMe.map(item => item.ownerUserId),
             $nin: myBlock.map(item => item.targetUserId),
-            $gt: afterUsername
+            $gt: afterUserId
           }
         },
         {
@@ -1197,7 +1201,7 @@ router.post('/updateAvatar/:avatarImageName', async function (req, res, next) {
   })(req, res, next)
 })
 
-router.post('/block/:userIds', async function (req, res, next) {
+router.post('/block', async function (req, res, next) {
   req.assert('userIds', 'required').notEmpty()
 
   let validateError = await req.getValidationResult()
@@ -1216,9 +1220,12 @@ router.post('/block/:userIds', async function (req, res, next) {
       return res.status(500).json({code: -1000, error: info})
     }
 
-    const userIds = req.params.userIds
-
     try {
+      console.log(req.body.userIds)
+      const userIds = JSON.parse(req.body.userIds)
+      console.log("pptest:" + userIds.length)
+      console.log(userIds)
+
       for (var i = 0; i < userIds.length; i++) {
         if (userIds[i] == user._id) {
           return res
@@ -1227,7 +1234,7 @@ router.post('/block/:userIds', async function (req, res, next) {
         }
       }
 
-      blockUsers(userIds)
+      blockUsers(user, userIds)
 
       return res
         .status(200)
@@ -1240,7 +1247,7 @@ router.post('/block/:userIds', async function (req, res, next) {
   })(req, res, next)
 })
 
-router.post('/unBlock/:userIds', async function (req, res, next) {
+router.post('/unBlock', async function (req, res, next) {
   req.assert('userIds', 'required').notEmpty()
 
   let validateError = await req.getValidationResult()
@@ -1259,9 +1266,12 @@ router.post('/unBlock/:userIds', async function (req, res, next) {
       return res.status(500).json({code: -1000, error: info})
     }
 
-    const userIds = req.params.userIds
-
     try {
+      console.log(req.body.userIds)
+      const userIds = JSON.parse(req.body.userIds)
+      console.log("pptest:" + userIds.length)
+      console.log(userIds)
+
       for (var i = 0; i < userIds.length; i++) {
         if (userIds[i] == user._id) {
           return res
@@ -1270,7 +1280,7 @@ router.post('/unBlock/:userIds', async function (req, res, next) {
         }
       }
 
-      unblockUsers(userIds)
+      unblockUsers(user, userIds)
 
       return res
         .status(200)

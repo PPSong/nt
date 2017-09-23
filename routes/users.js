@@ -27,9 +27,13 @@ router.post('/login', async function (req, res, next) {
     if (err) {
       return next(err)
     }
+
+    console.log('login1')
     if (!user) {
       return res.status(401).json({error: info})
     }
+
+    console.log('login2')
     if (user) {
       const token = jwt.sign({id: user._id, loginTime: user.loginTime}, secret)
       return res
