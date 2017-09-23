@@ -1597,6 +1597,21 @@ router.post('/getMyMoment/:fromTime?', async function (req, res, next) {
       })
         .sort({createTime: -1})
         .limit(5)
+        .populate('userId', '_id nickname avatar')
+        .lean()
+
+      for (var i = 0; i < result.length; i++) {
+        const like = await UserLikeMoment.findOne({
+          userId: user._id,
+          momentId: result[i]._id
+        })
+
+        if (like == null) {
+          result[i].like = false
+        } else {
+          result[i].like = true
+        }
+      }
 
       return res
         .status(200)
@@ -1934,7 +1949,7 @@ router.post('/likeMoment/:momentId', async function (req, res, next) {
 
       return res
         .status(200)
-        .json({apiName: "likeMoment", momentId: req.params.momentId})
+        .json({apiName: 'likeMoment', momentId: req.params.momentId})
     } catch (err) {
       return res
         .status(400)
@@ -2004,7 +2019,7 @@ router.post('/unLikeMoment/:momentId', async function (req, res, next) {
 
       return res
         .status(200)
-        .json({apiName: "unLikeMoment", momentId: req.params.momentId})
+        .json({apiName: 'unLikeMoment', momentId: req.params.momentId})
     } catch (err) {
       return res
         .status(400)
