@@ -130,6 +130,19 @@ const Comment = new Schema({
   createTime: Number,
 })
 
+const UserLikeMoment = new Schema({
+  userId: {
+    type: String,
+    ref: 'User'
+  },
+  momentId: {
+    type: String,
+    ref: 'Moment'
+  },
+  createTime: Number,
+})
+UserLikeMoment.index({userId: 1, momentId: 1}, {unique: true})
+
 module.exports = {
   User: mongoose.model('User', User),
   Follows: mongoose.model('Follows', Follows),
@@ -138,5 +151,6 @@ module.exports = {
   Blocks: mongoose.model('Blocks', Blocks),
   Message: mongoose.model('Message', Message),
   Moment: mongoose.model('Moment', Moment),
-  Comment: mongoose.model('Comment', Comment)
+  Comment: mongoose.model('Comment', Comment),
+  UserLikeMoment: mongoose.model('UserLikeMoment', UserLikeMoment)
 }

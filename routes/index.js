@@ -2,7 +2,7 @@ var express = require('express')
 var router = express.Router()
 const passport = require('passport')
 const jwt = require('jsonwebtoken')
-const {User, Follows, Fans, Friends, Blocks, Message, Moment, Comment} = require('../models/models')
+const {User, Follows, Fans, Friends, Blocks, Message, Moment, Comment, UserLikeMoment} = require('../models/models')
 var qiniu = require('qiniu')
 
 const bucket = 'pptest'
@@ -47,10 +47,10 @@ async function getNewBlocks (userId, startTime) {
     ],
     updateTime: {$gt: startTime}
   })
-    // .populate([
-    //   {path: 'ownerUserId', select: '_id nickname birthday avatar sex updateTime'},
-    //   {path: 'targetUserId', select: '_id nickname birthday avatar sex updateTime'}
-    // ])
+  // .populate([
+  //   {path: 'ownerUserId', select: '_id nickname birthday avatar sex updateTime'},
+  //   {path: 'targetUserId', select: '_id nickname birthday avatar sex updateTime'}
+  // ])
 
   return result
 }
@@ -61,7 +61,7 @@ async function unblockUsers (user, userIds) {
   for (var i = 0; i < userIds.length; i++) {
     const userId = userIds[i]
 
-    console.log("unblock:" + userId);
+    console.log('unblock:' + userId)
     //添加block列表
     const blockResult = await Blocks.findOneAndUpdate({
         ownerUserId: user._id,
@@ -88,7 +88,7 @@ async function unblockUsers (user, userIds) {
 }
 
 async function blockUsers (user, userIds) {
-  console.log("blockUsers:" + userIds);
+  console.log('blockUsers:' + userIds)
   const now = Date.now()
 
   for (var i = 0; i < userIds.length; i++) {
@@ -184,7 +184,7 @@ async function blockUsers (user, userIds) {
         new: false
       })
 
-    console.log("blockResult:" + blockResult);
+    console.log('blockResult:' + blockResult)
 
     if (blockResult == null || blockResult.deleted == true) {
       //确认记录确实从无到有, 或者从deleted == true 到 deleted == false, 应该要通知targetUserId, ownerUserId
@@ -217,6 +217,7 @@ router.post('/resetDB', async function (req, res, next) {
   const result6 = await Comment.remove({})
   const result7 = await Message.remove({})
   const result8 = await Moment.remove({})
+  const result9 = await UserLikeMoment.remove({})
 
   //create 900 users
   let users = []
@@ -1223,7 +1224,7 @@ router.post('/block', async function (req, res, next) {
     try {
       console.log(req.body.userIds)
       const userIds = JSON.parse(req.body.userIds)
-      console.log("pptest:" + userIds.length)
+      console.log('pptest:' + userIds.length)
       console.log(userIds)
 
       for (var i = 0; i < userIds.length; i++) {
@@ -1269,7 +1270,7 @@ router.post('/unBlock', async function (req, res, next) {
     try {
       console.log(req.body.userIds)
       const userIds = JSON.parse(req.body.userIds)
-      console.log("pptest:" + userIds.length)
+      console.log('pptest:' + userIds.length)
       console.log(userIds)
 
       for (var i = 0; i < userIds.length; i++) {
@@ -1537,6 +1538,20 @@ router.post('/getMoment/:lnt/:lat/:fromTime?', async function (req, res, next) {
         .sort({createTime: -1})
         .limit(5)
         .populate('userId', '_id nickname avatar')
+        .lean()
+
+      for (var i = 0; i < result.length; i++) {
+        const like = await UserLikeMoment.findOne({
+          userId: user._id,
+          momentId: result[i]._id
+        })
+
+        if (like == null) {
+          result[i].like = false
+        } else {
+          result[i].like = true
+        }
+      }
 
       console.log(result)
 
@@ -1842,6 +1857,154 @@ router.post('/deleteComment/:commentId', async function (req, res, next) {
       return res
         .status(200)
         .json(result)
+    } catch (err) {
+      return res
+        .status(400)
+        .json({code: -1, error: err.toString()})
+    }
+  })(req, res, next)
+})
+
+router.post('/likeMoment/:momentId', async function (req, res, next) {
+  req.assert('momentId', 'required').notEmpty()
+
+  let validateError = await req.getValidationResult()
+
+  if (!(validateError.isEmpty())) {
+    return res
+      .status(400)
+      .json({error: validateError.array()})
+  }
+
+  passport.authenticate('jwt', async function (err, user, info) {
+    if (err) {
+      return next(err)
+    }
+    if (!user) {
+      return res.status(500).json({code: -1000, error: info})
+    }
+
+    try {
+      //处理block
+      const blockResult1 = await Blocks.find({
+        ownerUserId: user._id,
+        deleted: false
+      }, {
+        targetUserId: 1
+      })
+
+      const blockResult1Users = blockResult1.map(item => item.targetUserId)
+
+      const blockResult2 = await Blocks.find({
+        targetUserId: user._id,
+        deleted: false
+      }, {
+        ownerUserId: 1
+      })
+
+      const blockResult2Users = blockResult2.map(item => item.ownerUserId)
+
+      const blockList = blockResult1Users.concat(blockResult2Users)
+
+      const targetMoment = await Moment.findOne({
+        _id: req.params.momentId,
+        userId: {
+          $nin: blockList
+        }
+      })
+
+      if (targetMoment == null) {
+        return res
+          .status(500)
+          .json({code: -1, error: '无此moment, 或对方屏蔽或被屏蔽中!'})
+      }
+
+      await UserLikeMoment.update({
+          userId: user._id,
+          momentId: req.params.momentId
+        },
+        {
+          $set: {
+            createTime: Date.now(),
+          }
+        },
+        {
+          upsert: true
+        })
+
+      return res
+        .status(200)
+        .json({apiName: "likeMoment", momentId: req.params.momentId})
+    } catch (err) {
+      return res
+        .status(400)
+        .json({code: -1, error: err.toString()})
+    }
+  })(req, res, next)
+})
+
+router.post('/unLikeMoment/:momentId', async function (req, res, next) {
+  req.assert('momentId', 'required').notEmpty()
+
+  let validateError = await req.getValidationResult()
+
+  if (!(validateError.isEmpty())) {
+    return res
+      .status(400)
+      .json({error: validateError.array()})
+  }
+
+  passport.authenticate('jwt', async function (err, user, info) {
+    if (err) {
+      return next(err)
+    }
+    if (!user) {
+      return res.status(500).json({code: -1000, error: info})
+    }
+
+    try {
+      //处理block
+      const blockResult1 = await Blocks.find({
+        ownerUserId: user._id,
+        deleted: false
+      }, {
+        targetUserId: 1
+      })
+
+      const blockResult1Users = blockResult1.map(item => item.targetUserId)
+
+      const blockResult2 = await Blocks.find({
+        targetUserId: user._id,
+        deleted: false
+      }, {
+        ownerUserId: 1
+      })
+
+      const blockResult2Users = blockResult2.map(item => item.ownerUserId)
+
+      const blockList = blockResult1Users.concat(blockResult2Users)
+
+      const targetMoment = await Moment.findOne({
+        _id: req.params.momentId,
+        userId: {
+          $nin: blockList
+        }
+      })
+
+      if (targetMoment == null) {
+        return res
+          .status(500)
+          .json({code: -1, error: '无此moment, 或对方屏蔽或被屏蔽中!'})
+      }
+
+      await UserLikeMoment.remove({
+        userId: user._id,
+        momentId: req.params.momentId
+      })
+
+      return res
+        .status(200)
+        .json({apiName: "unLikeMoment", momentId: req.params.momentId})
     } catch (err) {
       return res
         .status(400)
