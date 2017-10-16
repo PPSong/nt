@@ -201,10 +201,16 @@ async function blockUsers (user, userIds) {
   global.clients[user._id] && global.clients[user._id].emit('pushEvent', {type: 'get_new_friends'})
 }
 
-router.post('/test', async function (req, res, next) {
+router.post('/test1', async function (req, res, next) {
   setTimeout(() => {
-    res.status(200).json('test ok')
-  }, 3000)
+    res.status(500).json({value: 'test1 ok'})
+  }, 100)
+})
+
+router.post('/test2', async function (req, res, next) {
+  setTimeout(() => {
+    res.status(200).json({value: 'test2 ok'})
+  }, 100)
 })
 
 /* GET home page. */
