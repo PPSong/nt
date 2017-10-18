@@ -203,13 +203,13 @@ async function blockUsers (user, userIds) {
 
 router.post('/test1', async function (req, res, next) {
   setTimeout(() => {
-    res.status(500).json({value: 'test1 ok'})
+    res.status(500).json({code: -1, error: 'test1 error'})
   }, 100)
 })
 
 router.post('/test2', async function (req, res, next) {
   setTimeout(() => {
-    res.status(200).json({value: 'test2 ok'})
+    res.status(200).json('test2 ok')
   }, 100)
 })
 
